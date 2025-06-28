@@ -1,0 +1,34 @@
+[package]
+name = "prec"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+serde = ["serde_crate", "ndarray/serde"]
+
+[dependencies]
+rand = { version = "0.9.1", features = ["small_rng"] }
+ndarray = { version = "0.16.1", features = ["approx"] }
+ndarray-linalg = { version = "0.17", optional = true }
+num-traits = "0.2.19"
+
+[dependencies.serde_crate]
+package = "serde"
+optional = true
+version = "1.0"
+default-features = false
+features = ["std", "derive"]
+
+[dev-dependencies]
+approx = "0.5"
+
+[workspace]
+resolver = "3"
+members = ["algorithms/nonparametric/*", "app"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+linker-flavor = "ld.lld"

@@ -1,0 +1,802 @@
+// use eframe::egui::{self, Color32, Pos2, Rect, Sense, Stroke};
+// use eframe::{App, Frame};
+// use ndarray::array;
+// use rand::Rng;
+
+// use k_nn::{KnnClassifier, KnnError};
+// use prec::{DataPoint, Distance, L1Dist, L2Dist, LInfDist};
+
+// #[derive(Debug, Clone, PartialEq)]
+// enum DistanceMetric {
+//     L1,
+//     L2,
+//     LInfinity,
+// }
+
+// enum AnyClassifier {
+//     L1(KnnClassifier<String, f64, L1Dist>),
+//     L2(KnnClassifier<String, f64, L2Dist>),
+//     LInf(KnnClassifier<String, f64, LInfDist>),
+// }
+
+// impl AnyClassifier {
+//     fn predict(&self, features: ndarray::ArrayView1<f64>) -> Result<String, KnnError> {
+//         match self {
+//             AnyClassifier::L1(c) => c.predict(features),
+//             AnyClassifier::L2(c) => c.predict(features),
+//             AnyClassifier::LInf(c) => c.predict(features),
+//         }
+//     }
+// }
+
+// // --- Helper function to map class labels to colors ---
+// fn class_to_color(prediction: &Result<String, KnnError>) -> Color32 {
+//     match prediction {
+//         Ok(label) => {
+//             // Use the same color generation as the app
+//             MyApp::generate_class_color(label).linear_multiply(0.3)
+//         }
+//         Err(_) => Color32::from_gray(50), // Error (e.g., tie)
+//     }
+// }
+
+// // --- Main App Struct ---
+// struct MyApp {
+//     classifier: Option<AnyClassifier>,
+//     training_data: Vec<DataPoint<String, f64>>,
+//     k_value: usize,
+//     classification_map: Option<(egui::TextureHandle, (usize, usize))>,
+//     new_point_pos: Pos2,
+//     last_prediction: Result<String, KnnError>,
+//     // For mapping data space to screen space
+//     data_rect: Rect,
+//     // New fields for adding points
+//     selected_class: String,
+//     available_classes: Vec<String>,
+//     mode: InteractionMode,
+//     new_class_input: String,
+//     // Multiple prediction points
+//     prediction_points: Vec<(Pos2, Result<String, KnnError>)>,
+//     distance_metric: DistanceMetric,
+// }
+
+// #[derive(Debug, Clone, PartialEq)]
+// enum InteractionMode {
+//     Classify,      // Click to classify a single point
+//     AddPoint,      // Click to add a new training point
+//     MultiPredict,  // Click to add multiple prediction points
+// }
+
+// impl Default for MyApp {
+//     fn default() -> Self {
+//         let training_data = vec![
+//             // Class A
+//             DataPoint::new(array![2.0, 3.0], "A".to_string()),
+//             DataPoint::new(array![3.0, 4.0], "A".to_string()),
+//             DataPoint::new(array![1.0, 5.0], "A".to_string()),
+//             // Class B
+//             DataPoint::new(array![8.0, 7.0], "B".to_string()),
+//             DataPoint::new(array![7.0, 6.0], "B".to_string()),
+//             DataPoint::new(array![9.0, 5.0], "B".to_string()),
+//         ];
+//         let k_value = 3;
+//         let classifier = Some(AnyClassifier::L2(KnnClassifier::new(k_value, training_data.clone(), L2Dist).unwrap()));
+//         let new_point_pos = Pos2::new(5.0, 5.0);
+//         let last_prediction = classifier
+//             .as_ref()
+//             .unwrap()
+//             .predict(array![new_point_pos.x as f64, new_point_pos.y as f64].view());
+//         let available_classes = Self::extract_unique_classes(&training_data);
+
+//         Self {
+//             classifier,
+//             training_data,
+//             k_value,
+//             classification_map: None,
+//             new_point_pos,
+//             last_prediction,
+//             data_rect: Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(10.0, 10.0)),
+//             selected_class: if available_classes.is_empty() { 
+//                 "Class1".to_string() 
+//             } else { 
+//                 available_classes[0].clone() 
+//             },
+//             available_classes,
+//             mode: InteractionMode::Classify,
+//             new_class_input: String::new(),
+//             prediction_points: Vec::new(),
+//             distance_metric: DistanceMetric::L2, // Default to L2 distance
+//         }
+//     }
+// }
+
+// impl App for MyApp {
+//     fn update(&mut self, ctx: &egui::Context, _frame: &mut Frame) {
+//         let mut needs_map_regeneration = self.classification_map.is_none();
+
+//         // --- 1. Side Panel for Controls ---
+//         egui::SidePanel::left("controls_panel").show(ctx, |ui| {
+//             ui.heading("k-NN Controls");
+//             ui.separator();
+
+//             if ui.add(egui::Slider::new(&mut self.k_value, 1..=15).text("k Value")).changed() {
+//                 if self.recreate_classifier().is_ok() {
+//                     needs_map_regeneration = true;
+//                     self.recalculate_predictions();
+//                 }
+//             }
+
+//             ui.separator();
+//             ui.heading("Distance Metric");
+//             let mut metric_changed = false;
+//             ui.horizontal(|ui| {
+//                 metric_changed |= ui.radio_value(&mut self.distance_metric, DistanceMetric::L1, "L1 (Manhattan)").changed();
+//                 metric_changed |= ui.radio_value(&mut self.distance_metric, DistanceMetric::L2, "L2 (Euclidean)").changed();
+//                 metric_changed |= ui.radio_value(&mut self.distance_metric, DistanceMetric::LInfinity, "L-Infinity").changed();
+//             });
+
+//             if metric_changed {
+//                 if self.recreate_classifier().is_ok() {
+//                     needs_map_regeneration = true;
+//                     self.recalculate_predictions();
+//                 }
+//             }
+
+//             ui.separator();
+//             ui.heading("Interaction Mode");
+            
+//             ui.horizontal(|ui| {
+//                 ui.radio_value(&mut self.mode, InteractionMode::Classify, "Classify Point");
+//                 ui.radio_value(&mut self.mode, InteractionMode::AddPoint, "Add Training Point");
+//                 ui.radio_value(&mut self.mode, InteractionMode::MultiPredict, "Multi Predict");
+//             });
+
+//             match self.mode {
+//                 InteractionMode::Classify => {
+//                     ui.label("Click on the plot to classify a new point.");
+//                     ui.separator();
+//                     ui.label(format!("Point to Classify: [{:.1}, {:.1}]", self.new_point_pos.x, self.new_point_pos.y));
+//                     ui.label(format!(
+//                         "Prediction: {}",
+//                         match &self.last_prediction {
+//                             Ok(class) => class.clone(),
+//                             Err(e) => format!("Error: {:?}", e),
+//                         }
+//                     ));
+//                 }
+//                 InteractionMode::AddPoint => {
+//                     ui.label("Click on the plot to add a new training point.");
+//                     ui.horizontal(|ui| {
+//                         ui.label("Class for new point:");
+//                         egui::ComboBox::from_label("")
+//                             .selected_text(&self.selected_class)
+//                             .show_ui(ui, |ui| {
+//                                 for class in &self.available_classes {
+//                                     ui.selectable_value(&mut self.selected_class, class.clone(), class);
+//                                 }
+//                             });
+//                     });
+                    
+//                     // Add button to add a custom class
+//                     ui.horizontal(|ui| {
+//                         ui.label("Or add new class:");
+//                         if ui.text_edit_singleline(&mut self.new_class_input).lost_focus() 
+//                             && ui.input(|i| i.key_pressed(egui::Key::Enter)) 
+//                             && !self.new_class_input.trim().is_empty() 
+//                             && !self.available_classes.contains(&self.new_class_input.trim().to_string()) {
+                            
+//                             self.available_classes.push(self.new_class_input.trim().to_string());
+//                             self.selected_class = self.new_class_input.trim().to_string();
+//                             self.new_class_input.clear();
+//                         }
+//                     });
+                    
+//                     ui.separator();
+//                     ui.label(format!("Training Points: {}", self.training_data.len()));
+                    
+//                     // Data management buttons
+//                     ui.horizontal(|ui| {
+//                         if ui.button("Clear All Training Data").clicked() {
+//                             self.training_data.clear();
+//                             self.classifier = None;
+//                             self.prediction_points.clear();
+//                             self.update_available_classes(); // Reset available classes
+//                             needs_map_regeneration = true;
+//                         }
+                        
+//                         if ui.button("Load Sample Data").clicked() {
+//                             let sample_data = vec![
+//                                 DataPoint::new(array![1.5, 2.0], "Red".to_string()),
+//                                 DataPoint::new(array![2.0, 1.5], "Red".to_string()),
+//                                 DataPoint::new(array![1.8, 2.2], "Red".to_string()),
+//                                 DataPoint::new(array![7.5, 8.0], "Blue".to_string()),
+//                                 DataPoint::new(array![8.0, 7.5], "Blue".to_string()),
+//                                 DataPoint::new(array![7.8, 8.2], "Blue".to_string()),
+//                                 DataPoint::new(array![4.5, 5.0], "Green".to_string()),
+//                                 DataPoint::new(array![5.0, 4.5], "Green".to_string()),
+//                                 DataPoint::new(array![4.8, 5.2], "Green".to_string()),
+//                             ];
+//                             if self.set_training_data(sample_data).is_ok() {
+//                                 needs_map_regeneration = true;
+//                                 self.recalculate_predictions();
+//                             } else {
+//                                 eprintln!("Error setting sample data");
+//                             }
+//                         }
+//                     });
+                    
+//                     ui.horizontal(|ui| {
+//                         if ui.button("Export Data").clicked() {
+//                             // In a real app, you'd open a file dialog
+//                             self.export_training_data_to_console();
+//                         }
+                        
+//                         if ui.button("Random Points").clicked() {
+//                             let mut rng = rand::thread_rng();
+//                             let mut random_points = Vec::new();
+                            
+//                             // Generate random class names
+//                             let num_classes = rng.gen_range(2..=5);
+//                             let mut classes = Vec::new();
+//                             for _ in 0..num_classes {
+//                                 let name_len = rng.gen_range(4..=8);
+//                                 const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
+//                                 let mut class_name: String = (0..name_len)
+//                                     .map(|_| {
+//                                         let idx = rng.gen_range(0..CHARSET.len());
+//                                         CHARSET[idx] as char
+//                                     })
+//                                     .collect();
+//                                 // Capitalize the first letter
+//                                 if let Some(c) = class_name.get_mut(0..1) {
+//                                     c.make_ascii_uppercase();
+//                                 }
+//                                 classes.push(class_name);
+//                             }
+
+//                             let num_points = rng.gen_range(5..=20);
+
+//                             for _ in 0..num_points {
+//                                 let x = rng.gen_range(self.data_rect.min.x as f64..self.data_rect.max.x as f64);
+//                                 let y = rng.gen_range(self.data_rect.min.y as f64..self.data_rect.max.y as f64);
+//                                 let class = &classes[rng.gen_range(0..classes.len())];
+//                                 random_points.push(DataPoint::new(
+//                                     array![x, y],
+//                                     class.clone()
+//                                 ));
+//                             }
+//                             if self.set_training_data(random_points).is_ok() {
+//                                 needs_map_regeneration = true;
+//                                 self.recalculate_predictions();
+//                             } else {
+//                                 eprintln!("Error setting random data");
+//                             }
+//                         }
+//                     });
+//                 }
+//                 InteractionMode::MultiPredict => {
+//                     ui.label("Click on the plot to add prediction points.");
+//                     ui.separator();
+//                     ui.label(format!("Prediction Points: {}", self.prediction_points.len()));
+                    
+//                     ui.horizontal(|ui| {
+//                         if ui.button("Clear All Prediction Points").clicked() {
+//                             self.prediction_points.clear();
+//                         }
+                        
+//                         if ui.button("Export Predictions").clicked() {
+//                             self.export_prediction_data_to_console();
+//                         }
+//                     });
+                    
+//                     // Show predictions for all points
+//                     if !self.prediction_points.is_empty() {
+//                         ui.separator();
+//                         ui.label("Predictions:");
+//                         egui::ScrollArea::vertical().show(ui, |ui| {
+//                             for (i, (pos, prediction)) in self.prediction_points.iter().enumerate() {
+//                                 ui.horizontal(|ui| {
+//                                     ui.label(format!("Point {}: [{:.1}, {:.1}]", i + 1, pos.x, pos.y));
+//                                     match prediction {
+//                                         Ok(class) => {
+//                                             let color = self.get_prediction_color(class);
+//                                             ui.colored_label(color, format!("→ {}", class));
+//                                         }
+//                                         Err(err) => {
+//                                             ui.colored_label(Color32::RED, format!("→ {:?}", err));
+//                                         }
+//                                     }
+//                                 });
+//                             }
+//                         });
+//                     }
+//                 }
+//             }
+//         });
+
+//         // --- 2. Central Panel for the Plot ---
+//         egui::CentralPanel::default().show(ctx, |ui| {
+//             // Regenerate the map if needed
+//             if needs_map_regeneration {
+//                 if let Some(classifier) = &self.classifier {
+//                     let map_handle = generate_classification_map(classifier, ui.ctx());
+//                     self.classification_map = Some(map_handle);
+//                 } else {
+//                     // Clear the map if no training data
+//                     self.classification_map = None;
+//                 }
+//             }
+
+//             // Allocate space for our plot
+//             let (response, painter) = ui.allocate_painter(ui.available_size(), Sense::click());
+//             let to_screen = egui::emath::RectTransform::from_to(self.data_rect, response.rect);
+//             let to_data = to_screen.inverse();
+
+//             // --- 3. Drawing Logic (in layers) ---
+
+//             // Layer 1: Draw the classification map background (only if we have training data)
+//             if let Some((texture, _)) = &self.classification_map {
+//                 painter.image(texture.id(), response.rect, Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)), Color32::WHITE);
+//             }
+
+//             // Layer 2: Draw the training data points with different colors for each class
+//             for point in &self.training_data {
+//                 let color = self.get_class_color(&point.label);
+//                 let center = to_screen * Pos2::new(point.features[0] as f32, point.features[1] as f32);
+//                 painter.circle_filled(center, 5.0, color);
+//                 painter.circle_stroke(center, 5.0, Stroke::new(1.0, Color32::BLACK));
+//             }
+
+//             // Layer 3: Draw the new point to be classified (only in classify mode)
+//             if self.mode == InteractionMode::Classify {
+//                 let new_point_screen_pos = to_screen * self.new_point_pos;
+//                 painter.circle_filled(new_point_screen_pos, 7.0, Color32::YELLOW);
+//                 painter.circle_stroke(new_point_screen_pos, 7.0, Stroke::new(2.0, Color32::BLACK));
+//             }
+
+//             // Layer 4: Draw multiple prediction points (only in MultiPredict mode)
+//             if self.mode == InteractionMode::MultiPredict {
+//                 for (i, (pos, prediction)) in self.prediction_points.iter().enumerate() {
+//                     let screen_pos = to_screen * *pos;
+                    
+//                     // Different shapes for each prediction point
+//                     let color = match prediction {
+//                         Ok(class) => self.get_prediction_color(class),
+//                         Err(_) => Color32::GRAY,
+//                     };
+                    
+//                     // Draw the prediction point with a number
+//                     painter.circle_filled(screen_pos, 6.0, color);
+//                     painter.circle_stroke(screen_pos, 6.0, Stroke::new(2.0, Color32::BLACK));
+                    
+//                     // Draw the point number
+//                     painter.text(
+//                         screen_pos + egui::Vec2::new(10.0, -10.0),
+//                         egui::Align2::LEFT_BOTTOM,
+//                         format!("{}", i + 1),
+//                         egui::FontId::default(),
+//                         Color32::BLACK,
+//                     );
+//                 }
+//             }
+
+//             // --- 4. Handle Interaction ---
+//             if let Some(hover_pos) = response.hover_pos() {
+//                 if response.clicked() {
+//                     let clicked_pos = to_data * hover_pos;
+                    
+//                     match self.mode {
+//                         InteractionMode::Classify => {
+//                             if let Some(classifier) = &self.classifier {
+//                                 self.new_point_pos = clicked_pos;
+//                                 let features = array![self.new_point_pos.x as f64, self.new_point_pos.y as f64];
+//                                 self.last_prediction = classifier.predict(features.view());
+//                             }
+//                         }
+//                         InteractionMode::AddPoint => {
+//                             // Add new training point
+//                             let new_point = DataPoint::new(
+//                                 array![clicked_pos.x as f64, clicked_pos.y as f64],
+//                                 self.selected_class.clone()
+//                             );
+//                             self.training_data.push(new_point);
+                            
+//                             // Update available classes based on training data
+//                             self.update_available_classes();
+                            
+//                             // Recreate classifier with updated training data and regenerate map
+//                             if self.recreate_classifier().is_ok() {
+//                                 self.recalculate_predictions();
+//                                 if let Some(classifier) = &self.classifier {
+//                                     let map_handle = generate_classification_map(classifier, ui.ctx());
+//                                     self.classification_map = Some(map_handle);
+//                                 }
+//                             }
+//                         }
+//                         InteractionMode::MultiPredict => {
+//                             if let Some(classifier) = &self.classifier {
+//                                 // Add new prediction point
+//                                 let features = array![clicked_pos.x as f64, clicked_pos.y as f64];
+//                                 let prediction = classifier.predict(features.view());
+//                                 self.prediction_points.push((clicked_pos, prediction));
+//                             }
+//                         }
+//                     }
+//                 }
+//             }
+//         });
+//     }
+// }
+
+// impl MyApp {
+//     fn recreate_classifier(&mut self) -> Result<(), KnnError> {
+//         if self.training_data.is_empty() {
+//             self.classifier = None;
+//             return Err(KnnError::EmptyTrainingSet);
+//         }
+
+//         let k = self.k_value;
+//         let data = self.training_data.clone();
+
+//         let new_classifier = match self.distance_metric {
+//             DistanceMetric::L1 => AnyClassifier::L1(KnnClassifier::new(k, data, L1Dist)?),
+//             DistanceMetric::L2 => AnyClassifier::L2(KnnClassifier::new(k, data, L2Dist)?),
+//             DistanceMetric::LInfinity => AnyClassifier::LInf(KnnClassifier::new(k, data, LInfDist)?),
+//         };
+//         self.classifier = Some(new_classifier);
+//         Ok(())
+//     }
+
+//     fn recalculate_predictions(&mut self) {
+//         if let Some(classifier) = &self.classifier {
+//             for (pos, prediction) in &mut self.prediction_points {
+//                 let features = array![pos.x as f64, pos.y as f64];
+//                 *prediction = classifier.predict(features.view());
+//             }
+//         } else {
+//             self.prediction_points.clear();
+//         }
+//     }
+
+//     /// Extract unique classes from training data
+//     fn extract_unique_classes(training_data: &[DataPoint<String, f64>]) -> Vec<String> {
+//         let mut classes: std::collections::HashSet<String> = training_data
+//             .iter()
+//             .map(|point| point.label.clone())
+//             .collect();
+        
+//         // Always ensure we have at least a few default class options
+//         if classes.is_empty() {
+//             classes.insert("Class1".to_string());
+//             classes.insert("Class2".to_string());
+//             classes.insert("Class3".to_string());
+//         }
+        
+//         let mut sorted_classes: Vec<String> = classes.into_iter().collect();
+//         sorted_classes.sort();
+//         sorted_classes
+//     }
+
+//     /// Generate a consistent color for any class label using a better hash function
+//     fn generate_class_color(class: &str) -> Color32 {
+//         // Use a simple hash to generate consistent colors
+//         let hash = class.chars().fold(0u32, |acc, c| {
+//             acc.wrapping_mul(31).wrapping_add(c as u32)
+//         });
+        
+//         // Use the golden ratio to get better color distribution
+//         let golden_ratio = 0.618033988749;
+//         let hue = (hash as f64 * golden_ratio) % 1.0;
+        
+//         // Convert HSV to RGB with fixed saturation and value for consistency
+//         let saturation = 0.7;
+//         let value = 0.9;
+        
+//         let c = value * saturation;
+//         let x = c * (1.0 - ((hue * 6.0) % 2.0 - 1.0).abs());
+//         let m = value - c;
+        
+//         let (r, g, b) = match (hue * 6.0) as i32 {
+//             0 => (c, x, 0.0),
+//             1 => (x, c, 0.0),
+//             2 => (0.0, c, x),
+//             3 => (0.0, x, c),
+//             4 => (x, 0.0, c),
+//             _ => (c, 0.0, x),
+//         };
+        
+//         Color32::from_rgb(
+//             ((r + m) * 255.0) as u8,
+//             ((g + m) * 255.0) as u8,
+//             ((b + m) * 255.0) as u8,
+//         )
+//     }
+
+//     /// Get a color for a specific class label
+//     fn get_class_color(&self, class: &str) -> Color32 {
+//         Self::generate_class_color(class)
+//     }
+
+//     /// Get a brighter color for prediction display
+//     fn get_prediction_color(&self, class: &str) -> Color32 {
+//         let base_color = Self::generate_class_color(class);
+//         // Make it brighter by blending with white
+//         Color32::from_rgb(
+//             ((base_color.r() as u16 + 100).min(255)) as u8,
+//             ((base_color.g() as u16 + 100).min(255)) as u8,
+//             ((base_color.b() as u16 + 100).min(255)) as u8,
+//         )
+//     }
+
+//     /// Update available classes when new training data is added
+//     fn update_available_classes(&mut self) {
+//         let current_classes = Self::extract_unique_classes(&self.training_data);
+        
+//         // Add any new classes from training data
+//         for class in current_classes {
+//             if !self.available_classes.contains(&class) {
+//                 self.available_classes.push(class);
+//             }
+//         }
+        
+//         // Sort for consistent ordering
+//         self.available_classes.sort();
+        
+//         // If selected class is not in available classes, select the first one
+//         if !self.available_classes.contains(&self.selected_class) && !self.available_classes.is_empty() {
+//             self.selected_class = self.available_classes[0].clone();
+//         }
+//     }
+
+//     /// Create a new app with empty training data (for building from scratch)
+//     pub fn new_empty() -> Self {
+//         Self {
+//             classifier: None,
+//             training_data: Vec::new(),
+//             k_value: 3,
+//             classification_map: None,
+//             new_point_pos: Pos2::new(5.0, 5.0),
+//             last_prediction: Err(KnnError::EmptyTrainingSet),
+//             data_rect: Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(10.0, 10.0)),
+//             selected_class: "Class1".to_string(),
+//             available_classes: vec!["Class1".to_string(), "Class2".to_string(), "Class3".to_string()],
+//             mode: InteractionMode::AddPoint, // Start in add point mode for empty app
+//             new_class_input: String::new(),
+//             prediction_points: Vec::new(),
+//             distance_metric: DistanceMetric::L2,
+//         }
+//     }
+
+//     /// Add multiple training points programmatically
+//     pub fn add_training_points(&mut self, points: Vec<DataPoint<String, f64>>) -> Result<(), KnnError> {
+//         self.training_data.extend(points);
+//         self.update_available_classes();
+//         self.recalculate_predictions();
+//         self.recreate_classifier()
+//     }
+
+//     /// Add multiple prediction points programmatically
+//     pub fn add_prediction_points(&mut self, points: Vec<(f64, f64)>) -> Result<Vec<Result<String, KnnError>>, Box<dyn std::error::Error>> {
+//         if self.classifier.is_none() {
+//             return Err("Cannot make predictions without a classifier".into());
+//         }
+//         let classifier = self.classifier.as_ref().unwrap();
+
+//         let mut results = Vec::new();
+        
+//         for (x, y) in points {
+//             let features = array![x, y];
+//             let prediction = classifier.predict(features.view());
+//             let pos = Pos2::new(x as f32, y as f32);
+            
+//             self.prediction_points.push((pos, prediction.clone()));
+//             results.push(prediction);
+//         }
+        
+//         Ok(results)
+//     }
+
+//     /// Set training data (replaces existing data)
+//     pub fn set_training_data(&mut self, training_data: Vec<DataPoint<String, f64>>) -> Result<(), KnnError> {
+//         self.training_data = training_data;
+//         self.update_available_classes();
+        
+//         // Clear existing predictions since the model changed
+//         self.prediction_points.clear();
+        
+//         self.recreate_classifier()
+//     }
+
+//     /// Export current training data for external use
+//     pub fn export_training_data(&self) -> Vec<DataPoint<String, f64>> {
+//         self.training_data.clone()
+//     }
+
+//     /// Export current prediction data for external use
+//     pub fn export_prediction_data(&self) -> Vec<((f64, f64), Result<String, KnnError>)> {
+//         self.prediction_points
+//             .iter()
+//             .map(|(pos, res)| ((pos.x as f64, pos.y as f64), res.clone()))
+//             .collect()
+//     }
+
+//     /// Print training data to console (for debugging/copying)
+//     pub fn export_training_data_to_console(&self) {
+//         println!("=== Training Data ===");
+//         for point in self.training_data.iter() {
+//             println!("DataPoint::new(array![{:.2}, {:.2}], \"{}\".to_string()),", 
+//                      point.features[0], point.features[1], point.label);
+//         }
+//         println!("Total training points: {}", self.training_data.len());
+//     }
+
+//     /// Export prediction data to console (for debugging/copying)
+//     pub fn export_prediction_data_to_console(&self) {
+//         println!("=== Prediction Data ===");
+//         for (i, (pos, pred)) in self.prediction_points.iter().enumerate() {
+//             println!("Point {}: [{:.2}, {:.2}] -> {:?}", i + 1, pos.x, pos.y, pred);
+//         }
+//         println!("Total prediction points: {}", self.prediction_points.len());
+//     }
+// }
+
+// // --- The expensive map generation function ---
+// fn generate_classification_map(classifier: &AnyClassifier, ctx: &egui::Context) -> (egui::TextureHandle, (usize, usize)) {
+//     let resolution = (200, 200);
+//     let mut pixels = Vec::with_capacity(resolution.0 * resolution.1);
+//     let data_rect = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(10.0, 10.0));
+
+//     for y in 0..resolution.1 {
+//         for x in 0..resolution.0 {
+//             let data_x = data_rect.min.x + (x as f32 / resolution.0 as f32) * data_rect.width();
+//             let data_y = data_rect.min.y + (y as f32 / resolution.1 as f32) * data_rect.height();
+//             let features = array![data_x as f64, data_y as f64];
+//             let prediction = classifier.predict(features.view());
+//             pixels.push(class_to_color(&prediction));
+//         }
+//     }
+
+//     let image = egui::ColorImage {
+//         size: [resolution.0, resolution.1],
+//         pixels,
+//     };
+
+//     let handle = ctx.load_texture("classification-map", image, egui::TextureOptions::LINEAR);
+//     (handle, resolution)
+// }
+
+// // --- Main function to run the app ---
+// fn main() -> eframe::Result<()> {
+//     // For this demo, let's use the default app
+//     // You can change this to use any of the examples above
+//     let native_options = eframe::NativeOptions::default();
+//     eframe::run_native(
+//         "k-NN Visualizer",
+//         native_options,
+//         Box::new(|_cc| Ok(Box::new(MyApp::default()))),
+//     )
+// }
+
+
+// #[cfg(test)]
+// mod tests {
+//     use super::MyApp;
+//     use ndarray::array;
+//     use prec::DataPoint;
+
+//     #[test]
+//     fn test_custom_training_data() {
+//         let training_data = vec![
+//             DataPoint::new(array![1.0, 1.0], "A".to_string()),
+//             DataPoint::new(array![2.0, 2.0], "A".to_string()),
+//             DataPoint::new(array![8.0, 8.0], "B".to_string()),
+//             DataPoint::new(array![9.0, 9.0], "B".to_string()),
+//         ];
+
+//         let mut app = MyApp::new_empty();
+//         app.k_value = 3;
+//         app.set_training_data(training_data.clone()).unwrap();
+        
+//         // Check that training data was set correctly
+//         let exported = app.export_training_data();
+//         assert_eq!(exported.len(), 4);
+//         assert_eq!(exported[0].label, "A");
+//         assert_eq!(exported[2].label, "B");
+//     }
+
+//     #[test]
+//     fn test_adding_training_points() {
+//         let mut app = MyApp::new_empty();
+        
+//         let initial_points = vec![
+//             DataPoint::new(array![1.0, 1.0], "Class1".to_string()),
+//             DataPoint::new(array![2.0, 2.0], "Class2".to_string()),
+//         ];
+        
+//         app.add_training_points(initial_points).unwrap();
+        
+//         let additional_points = vec![
+//             DataPoint::new(array![3.0, 3.0], "Class3".to_string()),
+//         ];
+        
+//         app.add_training_points(additional_points).unwrap();
+        
+//         let exported = app.export_training_data();
+//         assert_eq!(exported.len(), 3);
+//     }
+
+//     #[test]
+//     fn test_prediction_points() {
+//         let training_data = vec![
+//             DataPoint::new(array![1.0, 1.0], "A".to_string()),
+//             DataPoint::new(array![2.0, 2.0], "A".to_string()),
+//             DataPoint::new(array![8.0, 8.0], "B".to_string()),
+//             DataPoint::new(array![9.0, 9.0], "B".to_string()),
+//         ];
+
+//         let mut app = MyApp::new_empty();
+//         app.k_value = 1;
+//         app.set_training_data(training_data).unwrap();
+        
+//         // Add prediction points
+//         let predictions = app.add_prediction_points(vec![(1.5, 1.5), (8.5, 8.5)]).unwrap();
+        
+//         assert_eq!(predictions.len(), 2);
+        
+//         // The predictions should be "A" and "B" respectively (with k=1)
+//         assert!(predictions[0].is_ok());
+//         assert!(predictions[1].is_ok());
+        
+//         if let Ok(class) = &predictions[0] {
+//             assert_eq!(class, "A");
+//         }
+//         if let Ok(class) = &predictions[1] {
+//             assert_eq!(class, "B");
+//         }
+//     }
+
+//     #[test]
+//     fn test_set_training_data() {
+//         let mut app = MyApp::new_empty();
+        
+//         let first_dataset = vec![
+//             DataPoint::new(array![1.0, 1.0], "Old".to_string()),
+//         ];
+//         app.add_training_points(first_dataset).unwrap();
+        
+//         let new_dataset = vec![
+//             DataPoint::new(array![5.0, 5.0], "New".to_string()),
+//             DataPoint::new(array![6.0, 6.0], "New".to_string()),
+//         ];
+//         app.set_training_data(new_dataset).unwrap();
+        
+//         let exported = app.export_training_data();
+//         assert_eq!(exported.len(), 2);
+//         assert_eq!(exported[0].label, "New");
+//         assert_eq!(exported[1].label, "New");
+//     }
+
+//     #[test]
+//     fn test_export_prediction_data() {
+//         let training_data = vec![
+//             DataPoint::new(array![0.0, 0.0], "Origin".to_string()),
+//             DataPoint::new(array![10.0, 10.0], "Corner".to_string()),
+//         ];
+
+//         let mut app = MyApp::new_empty();
+//         app.k_value = 1;
+//         app.set_training_data(training_data).unwrap();
+//         app.add_prediction_points(vec![(1.0, 1.0), (9.0, 9.0)]).unwrap();
+        
+//         let exported_predictions = app.export_prediction_data();
+//         assert_eq!(exported_predictions.len(), 2);
+        
+//         // Check coordinates
+//         assert_eq!(exported_predictions[0].0, (1.0, 1.0));
+//         assert_eq!(exported_predictions[1].0, (9.0, 9.0));
+        
+//         // Check predictions
+//         assert!(exported_predictions[0].1.is_ok());
+//         assert!(exported_predictions[1].1.is_ok());
+//     }
+// }

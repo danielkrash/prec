@@ -1,0 +1,36 @@
+[package]
+name = "k-nn"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+serde = ["serde_crate", "ndarray/serde"]
+
+[dependencies.serde_crate]
+package = "serde"
+optional = true
+version = "1.0"
+default-features = false
+features = ["std", "derive"]
+
+[dependencies]
+rand = "0.9.1"
+ndarray = { version = "0.16.1", features = ["approx"] }
+ndarray-linalg = { version = "0.17", optional = true }
+ndarray-stats = "0.5"
+num-traits = "0.2.19"
+prec = { version = "0.1.0", path = "../../.." }
+
+[dev-dependencies]
+approx = "0.4"
+criterion = "0.4.0"
+rand_xoshiro = "0.6"
+ndarray-rand = "0.14"
+
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+linker-flavor = "ld.lld"

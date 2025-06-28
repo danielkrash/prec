@@ -1,0 +1,20 @@
+[package]
+name = "knn-visualizer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+prec = { path = ".." }
+k-nn = { path = "../algorithms/nonparametric/k-nn" }
+k-means = { path = "../algorithms/nonparametric/k-means" }
+eframe = "0.31.1"
+ecolor = "0.31.1"
+egui = {version = "0.31.1" , features = ["color-hex"]}
+ndarray = "0.16.1"
+rand = "0.8.5"
+
+[profile.release]
+opt-level = 3
+codegen-units = 1
+lto = true
+linker-flavor = "ld.lld"
