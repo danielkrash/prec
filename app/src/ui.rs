@@ -1,5 +1,5 @@
 use crate::app::{Algorithm, InteractionMode, MyApp};
-use crate::classifier::{Classifier, KMeansAdapter, KnnAdapter};
+use crate::classifier::{Classifier, KMeansAdapter, KnnAdapter, LvqAdapter};
 
 use eframe::egui::{self, ecolor::Hsva, Color32, Pos2, Rect, Sense, Stroke, Ui};
 use ndarray::{array, ArrayView1};
@@ -102,6 +102,44 @@ pub fn draw_central_panel(app: &mut MyApp, ctx: &egui::Context) {
                         Pos2::new(center_pos.x + x_size, center_pos.y - x_size),
                     ],
                     Stroke::new(2.0, Color32::BLACK),
+                );
+            }
+        }
+
+        // Draw LVQ prototypes with labels
+        if let Some(prototypes) = app.classifier.get_prototypes() {
+            for (x, y, label) in prototypes.iter() {
+                let proto_pos = to_screen * Pos2::new(*x as f32, *y as f32);
+                
+                // Draw prototype as a diamond shape with class color
+                let class_color = MyApp::get_class_color(label);
+                let size = 10.0;
+                
+                // Draw diamond shape
+                let diamond_points = [
+                    Pos2::new(proto_pos.x, proto_pos.y - size),      // top
+                    Pos2::new(proto_pos.x + size, proto_pos.y),      // right
+                    Pos2::new(proto_pos.x, proto_pos.y + size),      // bottom
+                    Pos2::new(proto_pos.x - size, proto_pos.y),      // left
+                ];
+                
+                // Fill diamond
+                painter.add(egui::Shape::convex_polygon(
+                    diamond_points.to_vec(),
+                    class_color,
+                    Stroke::new(2.0, Color32::BLACK),
+                ));
+                
+                // Add a smaller white center
+                painter.circle_filled(proto_pos, 4.0, Color32::WHITE);
+                
+                // Add label text below the prototype
+                painter.text(
+                    Pos2::new(proto_pos.x, proto_pos.y + size + 5.0),
+                    egui::Align2::CENTER_TOP,
+                    label,
+                    egui::FontId::default(),
+                    Color32::BLACK,
                 );
             }
         }
@@ -224,6 +262,7 @@ fn draw_algorithm_selector(app: &mut MyApp, ui: &mut Ui) {
         .show_ui(ui, |ui| {
             ui.selectable_value(&mut selected_algo, Algorithm::Knn, "k-Nearest Neighbors");
             ui.selectable_value(&mut selected_algo, Algorithm::KMeans, "K-Means Clustering");
+            ui.selectable_value(&mut selected_algo, Algorithm::LVQ, "Learning Vector Quantization");
         });
 
     if selected_algo != app.active_algorithm {
@@ -231,6 +270,7 @@ fn draw_algorithm_selector(app: &mut MyApp, ui: &mut Ui) {
         let new_classifier: Box<dyn Classifier> = match selected_algo {
             Algorithm::Knn => Box::new(KnnAdapter::new()),
             Algorithm::KMeans => Box::new(KMeansAdapter::new()),
+            Algorithm::LVQ => Box::new(LvqAdapter::new()),
         };
         app.classifier = new_classifier;
         app.classifier.update_data(&app.training_data);

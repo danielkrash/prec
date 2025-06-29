@@ -7,7 +7,7 @@ edition = "2024"
 default = []
 
 [dependencies]
-prec = { version = "0.1.0", path = "../../.." }
+prec-helpers = { version = "0.1.0", path = "../../../prec-helpers" }
 rand = "0.9.1"
 ndarray = {version = "0.16.1" , features = ["approx"]}
 ndarray-linalg = { version = "0.17", optional = true }

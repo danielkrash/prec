@@ -1,7 +1,7 @@
 [package]
-name = "prec"
+name = "prec-helpers"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [features]
 default = []
@@ -13,10 +13,9 @@ ndarray = { version = "0.16.1", features = ["approx"] }
 ndarray-linalg = { version = "0.17", optional = true }
 num-traits = "0.2.19"
 rand_xoshiro = "0.7.0"
-prec-helpers = { path = "prec-helpers" }
-k-nn = { path = "algorithms/nonparametric/k-nn" }
-k-means = { path = "algorithms/nonparametric/k-means" }
-lvq = { path = "algorithms/nonparametric/lvq" }
+
+[dev-dependencies]
+approx = "0.5"
 
 [dependencies.serde_crate]
 package = "serde"
@@ -24,15 +23,3 @@ optional = true
 version = "1.0"
 default-features = false
 features = ["std", "derive"]
-
-[dev-dependencies]
-approx = "0.5"
-
-[workspace]
-resolver = "3"
-members = ["algorithms/nonparametric/*", "app", "prec-helpers"]
-
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1

@@ -7,15 +7,19 @@ edition = "2024"
 default = []
 
 [dependencies]
-rand = "0.9.1"
+rand = "0.8"
 ndarray = {version = "0.16.1" , features = ["approx"]}
 ndarray-linalg = { version = "0.17", optional = true }
 ndarray-stats = "0.5"
+prec-helpers = { version = "0.1.0", path = "../../../prec-helpers" }
+k-means = { version = "0.1.0" , path = "../k-means" }
+rand_xoshiro = "0.6"
+plotters = { version = "0.3", optional = true }
+colorgrad = { version = "0.6", optional = true }
 
 [dev-dependencies]
 approx = "0.4"
 criterion = "0.4.0"
-rand_xoshiro = "0.6"
 ndarray-rand = "0.14"
 
 

@@ -1,12 +1,6 @@
-//! Example demonstrating proper error handling with the k-NN classifier.
-//!
-//! This example shows how to handle various error conditions that can occur
-//! when using the k-NN classifier, replacing panics with proper Result-based
-//! error handling.
-
 use k_nn::{KnnClassifier, KnnError};
 use ndarray::array;
-use prec::{DataPoint, L2Dist};
+use prec_helpers::{DataPoint, L2Dist};
 
 fn main() {
     println!("k-NN Classifier Error Handling Examples");

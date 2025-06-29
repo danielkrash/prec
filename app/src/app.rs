@@ -1,4 +1,4 @@
-use crate::classifier::{Classifier, KnnAdapter, KMeansAdapter};
+use crate::classifier::{Classifier, KnnAdapter, KMeansAdapter, LvqAdapter};
 // When you add k-means, you'll uncomment this:
 // use crate::classifier::KMeansAdapter; 
 use crate::ui;
@@ -17,7 +17,7 @@ use std::error::Error;
 pub enum Algorithm {
     Knn,
     KMeans,
-    // LVQ,    // Add this when you implement LVQ
+    LVQ,
 }
 
 /// An enum to control what happens when the user clicks on the plot.
@@ -63,14 +63,66 @@ impl Default for MyApp {
     /// Creates the application with some default sample data.
     fn default() -> Self {
         let training_data = vec![
-            // Class A
+            // Class A - Cluster around (2, 3) - 20 points
+            DataPoint::new(array![1.5, 2.5], "A".to_string()),
             DataPoint::new(array![2.0, 3.0], "A".to_string()),
-            DataPoint::new(array![3.0, 4.0], "A".to_string()),
-            DataPoint::new(array![1.0, 5.0], "A".to_string()),
-            // Class B
-            DataPoint::new(array![8.0, 7.0], "B".to_string()),
+            DataPoint::new(array![2.5, 3.5], "A".to_string()),
+            DataPoint::new(array![1.8, 2.8], "A".to_string()),
+            DataPoint::new(array![2.2, 3.2], "A".to_string()),
+            DataPoint::new(array![1.6, 3.1], "A".to_string()),
+            DataPoint::new(array![2.4, 2.7], "A".to_string()),
+            DataPoint::new(array![1.9, 3.4], "A".to_string()),
+            DataPoint::new(array![2.1, 2.6], "A".to_string()),
+            DataPoint::new(array![2.3, 3.3], "A".to_string()),
+            DataPoint::new(array![1.7, 2.9], "A".to_string()),
+            DataPoint::new(array![2.6, 3.1], "A".to_string()),
+            DataPoint::new(array![1.4, 3.2], "A".to_string()),
+            DataPoint::new(array![2.8, 2.8], "A".to_string()),
+            DataPoint::new(array![1.3, 2.7], "A".to_string()),
+            DataPoint::new(array![2.7, 3.4], "A".to_string()),
+            DataPoint::new(array![1.1, 3.0], "A".to_string()),
+            DataPoint::new(array![2.9, 2.5], "A".to_string()),
+            DataPoint::new(array![1.2, 3.5], "A".to_string()),
+            DataPoint::new(array![2.0, 2.4], "A".to_string()),
+            
+            // Class B - Cluster around (7, 6) - 20 points  
+            DataPoint::new(array![6.5, 5.5], "B".to_string()),
             DataPoint::new(array![7.0, 6.0], "B".to_string()),
-            DataPoint::new(array![9.0, 5.0], "B".to_string()),
+            DataPoint::new(array![7.5, 6.5], "B".to_string()),
+            DataPoint::new(array![6.8, 5.8], "B".to_string()),
+            DataPoint::new(array![7.2, 6.2], "B".to_string()),
+            DataPoint::new(array![6.6, 6.1], "B".to_string()),
+            DataPoint::new(array![7.4, 5.7], "B".to_string()),
+            DataPoint::new(array![6.9, 6.4], "B".to_string()),
+            DataPoint::new(array![7.1, 5.6], "B".to_string()),
+            DataPoint::new(array![7.3, 6.3], "B".to_string()),
+            DataPoint::new(array![6.7, 5.9], "B".to_string()),
+            DataPoint::new(array![7.6, 6.1], "B".to_string()),
+            DataPoint::new(array![6.4, 6.2], "B".to_string()),
+            DataPoint::new(array![7.8, 5.8], "B".to_string()),
+            DataPoint::new(array![6.3, 5.7], "B".to_string()),
+            DataPoint::new(array![7.7, 6.4], "B".to_string()),
+            DataPoint::new(array![6.1, 6.0], "B".to_string()),
+            DataPoint::new(array![7.9, 5.5], "B".to_string()),
+            DataPoint::new(array![6.2, 6.5], "B".to_string()),
+            DataPoint::new(array![7.0, 5.4], "B".to_string()),
+            
+            // Class C - Cluster around (5, 8.5) - 15 points (making it slightly unbalanced)
+            DataPoint::new(array![4.5, 8.0], "C".to_string()),
+            DataPoint::new(array![5.0, 8.5], "C".to_string()),
+            DataPoint::new(array![5.5, 9.0], "C".to_string()),
+            DataPoint::new(array![4.8, 8.3], "C".to_string()),
+            DataPoint::new(array![5.2, 8.7], "C".to_string()),
+            DataPoint::new(array![4.6, 8.6], "C".to_string()),
+            DataPoint::new(array![5.4, 8.2], "C".to_string()),
+            DataPoint::new(array![4.9, 8.9], "C".to_string()),
+            DataPoint::new(array![5.1, 8.1], "C".to_string()),
+            DataPoint::new(array![5.3, 8.8], "C".to_string()),
+            DataPoint::new(array![4.7, 8.4], "C".to_string()),
+            DataPoint::new(array![5.6, 8.6], "C".to_string()),
+            DataPoint::new(array![4.4, 8.7], "C".to_string()),
+            DataPoint::new(array![5.8, 8.3], "C".to_string()),
+            DataPoint::new(array![4.3, 8.1], "C".to_string()),
         ];
 
         let available_classes = Self::extract_unique_classes(&training_data);
@@ -180,10 +232,6 @@ impl MyApp {
         
         let golden_ratio_conjugate = 0.61803398875;
         let hue = (hash as f32 * golden_ratio_conjugate).fract();
-    
-        // --- ADD THIS PRINTLN FOR DEBUGGING ---
-        // println!("Class: '{}', Hash: {}, Hue: {:.3}", class_name, hash, hue);
-        // --- END OF DEBUGGING PRINTLN ---
     
         let hsva = Hsva { h: hue, s: 0.85, v: 0.9, a: 1.0 };
         Color32::from(hsva)

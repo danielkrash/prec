@@ -1,5 +1,5 @@
 use ndarray::Array1;
-use crate::helpers::Float;
+use crate::Float;
 use std::fmt::Debug;
 
 /// Represents a single data point with features and a label.

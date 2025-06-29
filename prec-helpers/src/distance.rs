@@ -1,4 +1,4 @@
-use crate::helpers::Float;
+use crate::Float;
 use ndarray::{Array2, ArrayBase, ArrayView, Axis, Data, Dimension, Ix2, Zip};
 
 #[cfg(feature = "serde")]

@@ -15,7 +15,7 @@ mod distance;
 
 // Re-export types from submodules
 pub use common::DataPoint;
-pub use distance::{Distance, L1Dist, L2Dist, LInfDist, LpDist};
+pub use distance::{Distance, L1Dist, L2Dist, LInfDist, LpDist, to_gaussian_similarity};
 
 pub trait Float:
     NdFloat

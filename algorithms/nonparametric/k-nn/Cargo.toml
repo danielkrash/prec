@@ -20,7 +20,7 @@ ndarray = { version = "0.16.1", features = ["approx"] }
 ndarray-linalg = { version = "0.17", optional = true }
 ndarray-stats = "0.5"
 num-traits = "0.2.19"
-prec = { version = "0.1.0", path = "../../.." }
+prec-helpers = { version = "0.1.0", path = "../../../prec-helpers" }
 
 [dev-dependencies]
 approx = "0.4"

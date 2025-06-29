@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 // These are the core components from our shared library.
-use prec::{DataPoint, Distance};
+use prec_helpers::{DataPoint, Distance};
 
-// ndarray and prec are used in the public function signatures.
+// ndarray and prec_helpers are used in the public function signatures.
 use ndarray::ArrayView1;
-use prec::Float;
+use prec_helpers::Float;
 /// Errors that can occur when using the k-NN classifier.
 #[derive(Debug, Clone, PartialEq)]
 pub enum KnnError {
@@ -171,7 +171,7 @@ where
 mod tests {
     use super::*;
     use ndarray::array;
-    use prec::L2Dist; // Assuming L2Dist is exported from ml_core
+    use prec_helpers::L2Dist; // Assuming L2Dist is exported from ml_core
 
     #[test]
     fn test_knn_classification_simple() {

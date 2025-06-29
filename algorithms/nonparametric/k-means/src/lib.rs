@@ -5,7 +5,7 @@ use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 // Core components from shared library
-use prec::{DataPoint, Distance, Float};
+use prec_helpers::{DataPoint, Distance, Float};
 
 /// Errors that can occur during k-means clustering.
 #[derive(Debug, Clone, PartialEq)]
@@ -211,7 +211,7 @@ where
 mod tests {
     use super::*;
     use ndarray::array;
-    use prec::L2Dist;
+    use prec_helpers::L2Dist;
 
     fn get_test_data() -> Vec<DataPoint<&'static str, f64>> {
         vec![
